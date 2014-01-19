@@ -3,10 +3,12 @@ require 'neography'
 require 'imdb/parser'
 
 
-# Usage: pv actors.list | ./data_loader <neo4j host>
+# Usage: pv actors.list | ./data_loader.rb <neo4j host> <latest>
+# Get the latest with "MATCH (a:Actor) RETURN a.name ORDER BY UPPER(a.name) DESC LIMIT 1"
 class Application
   def run
     create_indexes
+    fast_forward
     parser.each {|actor| load_actor(actor)}
   end
 
@@ -43,9 +45,16 @@ class Application
     neo.create_schema_index("Movie", ["title"]) unless neo.get_schema_index("Movie")
   end
 
-  attr_reader :parser, :neo
+  def fast_forward
+    return unless latest
+    ## Rerun the latest to ensure all movies are present
+    load_actor(parser.find { |a| a.name == latest })
+  end
+
+  attr_reader :parser, :neo, :latest
   def initialize
     @parser = IMDB::Parser::Parser.new(IO.new($stdin.fileno, 'r:ISO-8859-1'))
+    @latest = ARGV[1]
     @neo = Neography::Rest.new
   end
 
